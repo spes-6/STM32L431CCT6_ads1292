@@ -2,6 +2,7 @@
 "stm32l431cct6_ads1292\startup_stm32l431xx.o"
 "stm32l431cct6_ads1292\main.o"
 "stm32l431cct6_ads1292\gpio.o"
+"stm32l431cct6_ads1292\dma.o"
 "stm32l431cct6_ads1292\spi.o"
 "stm32l431cct6_ads1292\usart.o"
 "stm32l431cct6_ads1292\stm32l4xx_it.o"

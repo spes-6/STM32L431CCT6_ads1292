@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
@@ -26,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "ADS1292.h"
 #include <stdio.h>
+#include "ADS1292_App.h"
 
 /* USER CODE END Includes */
 
@@ -48,7 +50,15 @@
 
 /* USER CODE BEGIN PV */
 extern volatile uint8_t drdy_flag;
+extern volatile uint8_t spi_rx_done ;
 
+extern int32_t raw_min;       // 最小原始值
+extern int32_t raw_max ; // 最大原始值
+extern int32_t raw_first[10];              // 前10个原始值留档
+extern uint32_t ads_test_count;        // 当前已存样本数
+
+uint8_t sam_sta=0;
+extern  float ads_test_data[TEST_SAMPLES];
 
 /* USER CODE END PV */
 
@@ -112,6 +122,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -129,37 +140,51 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		uint8_t rx_buf[9];
-		if(drdy_flag==1){
-			drdy_flag=0;
-			ads1292_RDATA(rx_buf, 9);   // 读取 9 字节
+    if (drdy_flag) {
+        drdy_flag = 0;
+        ads1291_start_read();   
+    }	
+    if (spi_rx_done) {
+    spi_rx_done = 0;
+    ads1292_parse_dma_buffer();
+        if (ads_test_count >= TEST_SAMPLES) {
+            sam_sta = 1;
+        }
+			}
+		    /* 3. 采满后只打印一次 */
+    if (sam_sta) {
+        sam_sta = 0;
 
-        // 校验状态字
-        if ((rx_buf[0] & 0xF0) != 0xC0) {
-            continue;               // 状态异常，跳过
+        /* 关 DRDY 中断 */
+        HAL_NVIC_DisableIRQ(EXTI0_IRQn);
+
+        /* 停止 ADS1292 连续读取 */
+        ads1292_cs(0);   // 没有这个函数就拉高 CS
+
+        /* 打印前 10 个原始值 */
+        for (int i = 0; i < 10; i++) {
+            printf("RAW[%d]=%ld, HEX=0x%06lX\r\n",
+                   i,
+                   (long)raw_first[i],
+                   (unsigned long)((uint32_t)raw_first[i] & 0xFFFFFFUL));
         }
 
-        // 解析 CH1、CH2（简单打印）
-        int32_t ch1_raw = ((int32_t)rx_buf[3] << 16) |
-                          ((int32_t)rx_buf[4] << 8)  |
-                          (int32_t)rx_buf[5];
-        if (ch1_raw & 0x800000) {
-            ch1_raw |= (int32_t)0xFF000000;
+        /* 打印采样点数 */
+        printf("Capture finished: %lu samples\r\n",
+               (unsigned long)ads_test_count);
+
+        /* 打印全部电压值 */
+        for (uint32_t i = 0; i < TEST_SAMPLES; i++) {
+            printf("%.6f\r\n", ads_test_data[i]);
         }
 
-        int32_t ch2_raw = ((int32_t)rx_buf[6] << 16) |
-                          ((int32_t)rx_buf[7] << 8)  |
-                          (int32_t)rx_buf[8];
-        if (ch2_raw & 0x800000) {
-            ch2_raw |= (int32_t)0xFF000000;
+        /* 停在这里，不再采集 */
+        while (1) {
+            HAL_Delay(1000);
         }
 
-        printf("CH1=%ld CH2=%ld\r\n", (long)ch1_raw, (long)ch2_raw);
-    }
-
-		
-
-    }
+    
+	}}
   /* USER CODE END 3 */
 }
 

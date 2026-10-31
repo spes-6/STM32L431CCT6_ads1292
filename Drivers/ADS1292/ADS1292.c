@@ -1,6 +1,8 @@
 #include "ADS1292.h"
 
 
+ uint8_t dummy[9] = {0};
+ uint8_t ads1292_dma_buf[9];
 
 
 void ads1292_cs(uint8_t x)
@@ -52,22 +54,6 @@ void ads1292_RREG(uint8_t addr,uint8_t cnt,uint8_t *Data)
 //    HAL_Delay(1);
 //}
 
-//void ads1292_RREG(uint8_t addr, uint8_t cnt, uint8_t *Data)
-//{
-//    uint8_t tx[2];
-//    uint8_t dummy[10] = {0};
-
-//    tx[0] = 0x20 | addr;
-//    tx[1] = cnt - 1;
-
-//    ads1292_cs(0);
-
-//    HAL_SPI_Transmit(&hspi1, tx, 2, 100);
-
-//    HAL_SPI_TransmitReceive(&hspi1, dummy, Data, cnt, 100);
-
-//    ads1292_cs(1);
-//}
 
 void ads1292_cmd(uint8_t cmd)
 {
@@ -146,11 +132,10 @@ void ads1292_RDATA(uint8_t *Data,uint8_t len)
 	ads1292_cs(1);
 }
 
-void ads1291_RDATAC(void)
+/* ===== 启动一次 DMA 读取 ===== */
+void ads1291_start_read(void)
 {
-    
     ads1292_cs(0);
-
-        ads1292_cs(1);
-    
+    HAL_SPI_TransmitReceive_DMA(&hspi1, dummy,
+                                ads1292_dma_buf, 9);
 }

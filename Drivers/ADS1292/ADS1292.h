@@ -34,7 +34,7 @@ void ads1292_RDATA(uint8_t *Data, uint8_t len);
 //void ads1292_start_continuous(void);
 //void ads1292_dump_regs(void);
 //void ads1292_SendSDATAC(void);
-
+void ads1291_start_read(void);
 
 #ifdef __cplusplus
 }

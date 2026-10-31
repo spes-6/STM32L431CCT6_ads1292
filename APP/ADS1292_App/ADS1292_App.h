@@ -9,25 +9,24 @@
 #include "usart.h"
 #include "gpio.h"
 
+#define TEST_SAMPLES 2500
 
+#define ADS1292_BUF_SIZE 10
 
-#define ADS1291_BUF_SIZE 10
-
-#define ADS1291_USE_RDATAC  1   // 1=连续模式，0=单次模式
+#define ADS1292_USE_RDATAC  1   // 1=连续模式，0=单次模式
 
 typedef struct {
-    uint32_t stat[ADS1291_BUF_SIZE];
-    float ch1_data[ADS1291_BUF_SIZE];
-} ads1291_data_str;
+    uint32_t stat[ADS1292_BUF_SIZE];
+    float ch1_data[ADS1292_BUF_SIZE];
+} ads1292_data_str;
 
 
-extern ads1291_data_str ads1291_data;
+extern ads1292_data_str ads1292_data;
 extern uint16_t ads1291_count;
 extern uint8_t sam_sta;
 
 
-
-void ads1291_read_into_buffer(void);
+void ads1292_parse_dma_buffer(void);
 
 void ADS1291_BPF2_30_Reset(float first_sample);
 float ADS1291_BPF2_30_Process(float input);
