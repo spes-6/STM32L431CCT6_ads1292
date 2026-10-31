@@ -71,16 +71,15 @@ void ads1292_RREG(uint8_t addr,uint8_t cnt,uint8_t *Data)
 
 void ads1292_cmd(uint8_t cmd)
 {
-	//ads1291_cs(0);
+
 	HAL_SPI_Transmit(&hspi1,&cmd,1,100);
-	//ads1291_cs(1);
+
 }
 
 void ads1292_Init(void)
 {
-    // 1. CLKSEL 
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_RESET);
-    HAL_Delay(10);
+
+    HAL_Delay(50);
     
     // 2. START 拉低
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
@@ -88,6 +87,7 @@ void ads1292_Init(void)
     
     // 3. 复位
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+	 HAL_Delay(10);
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 		HAL_Delay(10);
 
@@ -101,16 +101,16 @@ void ads1292_Init(void)
     
     // 5. 配置所有寄存器（从 0x01 到 0x0B，共 11 个）
 		uint8_t regData[10];
-		regData[0] = 0x82U;   // 0x01 CONFIG1 单次转换模式 + 固定保留位 0 + 采样率 500SPS
-		regData[1] = 0x80U;    // 0x02 CONFIG2
+		regData[0] = 0x02U;   // 0x01 CONFIG1 单次转换模式 + 固定保留位 0 + 采样率 500SPS
+		regData[1] = 0xA0U;    // 0x02 CONFIG2
 		regData[2] = 0x10U;   // 0x03 LOFF导联脱落检测控制寄存器（默认）
 		regData[3] = 0x00U;     // 0x04 CH1SET
 		regData[4] = 0x00U;   // 0x05 CH2SET
 		regData[5] = 0x00;   // 0x06 RLD_SENS
 		regData[6] = 0x00;   // 0x07 LOFF_SENS
 		regData[7] = 0x40U;   // 0x08 LOFF_STAT（配置 CLK_DIV=1，晶振是 2.048M）
-		regData[8] = 0x02;   // 0x09 RESP1（ADS1291必须写 0x02）
-		regData[9] = 0x07;   // 0x0A RESP2（ADS1291必须写 0x02）
+		regData[8] = 0x02;   // 0x09 RESP1
+		regData[9] = 0x07;   // 0x0A RESP2
 
 		ads1292_WREG(0x01, 10, regData);  // 从 0x01 写 10 个，覆盖 0x01~0x0A
 		uint8_t gpio_cfg = 0x0C;
@@ -121,7 +121,9 @@ void ads1292_Init(void)
 
     
     // 6. START 拉高
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+		ads1292_cs(0);
+    ads1292_cmd(0x08);   // START 命令
+		 ads1292_cs(1);
     HAL_Delay(10);
 
 
@@ -132,7 +134,8 @@ void ads1292_RDATA(uint8_t *Data,uint8_t len)
 {
 	ads1292_cs(0);
 	ads1292_cmd(0x12);
+	uint8_t dummy[9] = {0};
 //	HAL_Delay(1); 
-	HAL_SPI_Receive(&hspi1,Data,len,100);
+	HAL_SPI_TransmitReceive(&hspi1, dummy, Data, len, 100);
 	ads1292_cs(1);
 }

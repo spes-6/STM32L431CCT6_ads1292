@@ -112,9 +112,9 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
-  /* USER CODE BEGIN 2 */
+  /* USER CODE BEGIN 2 *///----------------------------------
+	
  ads1292_Init();
-// ads1292_SendSDATAC();
 
 
 
@@ -127,11 +127,38 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		 uint32_t timeout = 0;
+    while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) != GPIO_PIN_RESET)
+    {
+        HAL_Delay(1);
+        timeout++;
+        // 超时 1000ms 就跳过，防止卡死在这里
+        if (timeout > 1000) 
+					printf("DRDY no | ");
+					break; 
+    }
+
+    // 2. 如果是因为等到 DRDY 低电平退出的，就去读数据
+    if (timeout < 1000)
+    {
+        uint8_t data[9] = {0};
+        ads1292_RDATA(data, 9); 
+
+        
+        printf("DRDY OK | ");
+        for (int i = 0; i < 9; i++)
+        {
+            printf("0x%02X ", data[i]);
+        }
+        printf("\r\n");
+    }
+
+
 		
-uint8_t id = 0;
-ads1292_RREG(0x00, 1, &id);
-printf("ID = 0x%02X\r\n", id);
-  }
+//uint8_t id = 0;
+//ads1292_RREG(0x00, 1, &id);
+//printf("ID = 0x%02X\r\n", id);
+    }
   /* USER CODE END 3 */
 }
 
