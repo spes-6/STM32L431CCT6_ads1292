@@ -126,7 +126,13 @@ void ads1292_Init(void)
 		 ads1292_cs(1);
     HAL_Delay(10);
 
-
+    // 7. ·¢ RDATAC
+    ads1292_cs(0);
+    ads1292_cmd(0x10);
+    ads1292_cs(1);
+    HAL_Delay(1);
+    
+    printf("RDATAC sent\r\n");
 }
 
 
@@ -138,4 +144,13 @@ void ads1292_RDATA(uint8_t *Data,uint8_t len)
 //	HAL_Delay(1); 
 	HAL_SPI_TransmitReceive(&hspi1, dummy, Data, len, 100);
 	ads1292_cs(1);
+}
+
+void ads1291_RDATAC(void)
+{
+    
+    ads1292_cs(0);
+
+        ads1292_cs(1);
+    
 }

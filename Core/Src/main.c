@@ -47,6 +47,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+extern volatile uint8_t drdy_flag;
+
 
 /* USER CODE END PV */
 
@@ -112,7 +114,7 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
-  /* USER CODE BEGIN 2 *///----------------------------------
+  /* USER CODE BEGIN 2 */
 	
  ads1292_Init();
 
@@ -127,37 +129,36 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		 uint32_t timeout = 0;
-    while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) != GPIO_PIN_RESET)
-    {
-        HAL_Delay(1);
-        timeout++;
-        // 超时 1000ms 就跳过，防止卡死在这里
-        if (timeout > 1000) 
-					printf("DRDY no | ");
-					break; 
-    }
+		uint8_t rx_buf[9];
+		if(drdy_flag==1){
+			drdy_flag=0;
+			ads1292_RDATA(rx_buf, 9);   // 读取 9 字节
 
-    // 2. 如果是因为等到 DRDY 低电平退出的，就去读数据
-    if (timeout < 1000)
-    {
-        uint8_t data[9] = {0};
-        ads1292_RDATA(data, 9); 
-
-        
-        printf("DRDY OK | ");
-        for (int i = 0; i < 9; i++)
-        {
-            printf("0x%02X ", data[i]);
+        // 校验状态字
+        if ((rx_buf[0] & 0xF0) != 0xC0) {
+            continue;               // 状态异常，跳过
         }
-        printf("\r\n");
-    }
 
+        // 解析 CH1、CH2（简单打印）
+        int32_t ch1_raw = ((int32_t)rx_buf[3] << 16) |
+                          ((int32_t)rx_buf[4] << 8)  |
+                          (int32_t)rx_buf[5];
+        if (ch1_raw & 0x800000) {
+            ch1_raw |= (int32_t)0xFF000000;
+        }
+
+        int32_t ch2_raw = ((int32_t)rx_buf[6] << 16) |
+                          ((int32_t)rx_buf[7] << 8)  |
+                          (int32_t)rx_buf[8];
+        if (ch2_raw & 0x800000) {
+            ch2_raw |= (int32_t)0xFF000000;
+        }
+
+        printf("CH1=%ld CH2=%ld\r\n", (long)ch1_raw, (long)ch2_raw);
+    }
 
 		
-//uint8_t id = 0;
-//ads1292_RREG(0x00, 1, &id);
-//printf("ID = 0x%02X\r\n", id);
+
     }
   /* USER CODE END 3 */
 }
