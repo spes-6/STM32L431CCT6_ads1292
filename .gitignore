@@ -1,0 +1,17 @@
+# Keil 编译生成文件
+Objects/
+Listings/
+*.axf
+*.hex
+*.bin
+*.map
+*.lst
+*.dep
+*.crf
+*.o
+*.d
+
+# 临时文件
+*.bak
+*.tmp
+*.log
