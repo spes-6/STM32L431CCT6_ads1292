@@ -28,11 +28,11 @@ void ads1292_parse_dma_buffer(void)
         return;
     }
 
-    /* 2. 解析通道 1 的 24 位有符号 ADC 原始值 */
+    /* 2. 解析通道 2 的 24 位有符号 ADC 原始值 */
     int32_t ch1_raw =
-        ((int32_t)buf[3] << 16) |
-        ((int32_t)buf[4] << 8)  |
-        (int32_t)buf[5];
+        ((int32_t)buf[6] << 16) |
+        ((int32_t)buf[7] << 8)  |
+        (int32_t)buf[8];
 
     /* 3. 24 位补码符号扩展 */
     if (ch1_raw & 0x800000) {
@@ -60,6 +60,75 @@ if (ads_test_count < 10) {
         ads_test_count++;
     }
 }
+
+
+/* ================== 陷波器部分 ================== */
+/* 采样率 500Hz, 中心频率 50Hz, Q值 30 */
+static const float N50_B0 =  0.99029862f;
+static const float N50_B1 = -1.60233682f;
+static const float N50_B2 =  0.99029862f;
+static const float N50_A1 = -1.60233682f;
+static const float N50_A2 =  0.98059724f;
+
+void Notch50_Reset(Notch50State *state)
+{
+    if (state != NULL) {
+        state->z1 = 0.0f;
+        state->z2 = 0.0f;
+    }
+}
+
+float Notch50_Process(Notch50State *state, float input)
+{
+    float output;
+
+    if (state == NULL) {
+        return input;
+    }
+
+    // 核心 IIR 差分方程
+    output = N50_B0 * input + state->z1;
+
+    state->z1 = N50_B1 * input - N50_A1 * output + state->z2;
+    state->z2 = N50_B2 * input - N50_A2 * output;
+
+    return output;
+}
+/* ================================================ */
+
+/* ================== 40Hz 低通滤波器 (Fs=500Hz) ================== */
+// MATLAB: [b,a] = butter(2, 40/(500/2));
+static const float LPF40_B0 = 0.20657208f;
+static const float LPF40_B1 = 0.41314417f;
+static const float LPF40_B2 = 0.20657208f;
+static const float LPF40_A1 = -0.36952738f;
+static const float LPF40_A2 = 0.19581571f;
+
+void Lpf40_Reset(Lpf40State *state)
+{
+    if (state != NULL) {
+        state->z1 = 0.0f;
+        state->z2 = 0.0f;
+    }
+}
+
+float Lpf40_Process(Lpf40State *state, float input)
+{
+    float output;
+
+    if (state == NULL) {
+        return input;
+    }
+
+    // 二阶 IIR 差分方程
+    output = LPF40_B0 * input + state->z1;
+    state->z1 = LPF40_B1 * input - LPF40_A1 * output + state->z2;
+    state->z2 = LPF40_B2 * input - LPF40_A2 * output;
+
+    return output;
+}
+/* ================================================================ */
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {

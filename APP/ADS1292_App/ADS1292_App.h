@@ -28,15 +28,23 @@ extern uint8_t sam_sta;
 
 void ads1292_parse_dma_buffer(void);
 
-void ADS1291_BPF2_30_Reset(float first_sample);
-float ADS1291_BPF2_30_Process(float input);
-//----ÏÝ²¨Æ÷-----------------------------------------------
+/* ÏÝ²¨Æ÷ */
 typedef struct {
     float z1;
     float z2;
 } Notch50State;
 
+extern float ads_test_data[TEST_SAMPLES];
+extern float ads_bp_notch[TEST_SAMPLES];
 void Notch50_Reset(Notch50State *state);
 float Notch50_Process(Notch50State *state, float input);
+// 40hzµÍÍ¨£º
+typedef struct {
+    float z1;
+    float z2;
+} Lpf40State;
+
+void Lpf40_Reset(Lpf40State *state);
+float Lpf40_Process(Lpf40State *state, float input);
 
 #endif

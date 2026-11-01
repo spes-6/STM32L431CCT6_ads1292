@@ -59,6 +59,9 @@ extern uint32_t ads_test_count;        // 当前已存样本数
 
 uint8_t sam_sta=0;
 extern  float ads_test_data[TEST_SAMPLES];
+uint8_t output_done = 0;
+static float ads_test_filtered[2500];
+static float ads_bp_notch[2500];
 
 /* USER CODE END PV */
 
@@ -151,7 +154,8 @@ int main(void)
             sam_sta = 1;
         }
 			}
-		    /* 3. 采满后只打印一次 */
+
+			/* 3. 采满后只打印一次 */
     if (sam_sta) {
         sam_sta = 0;
 
@@ -159,32 +163,84 @@ int main(void)
         HAL_NVIC_DisableIRQ(EXTI0_IRQn);
 
         /* 停止 ADS1292 连续读取 */
-        ads1292_cs(0);   // 没有这个函数就拉高 CS
+        ads1292_cs(1);   // 没有这个函数就拉高 CS
+//--------------------------------------------------------------------------
+//       /* 2. 初始化滤波器 */
+//        Notch50State notch50_bp;
+//        Lpf40State   lpf40_bp;
+//        Notch50_Reset(&notch50_bp);
+//        Lpf40_Reset(&lpf40_bp);
+//        
+//        /* 3. 执行级联滤波：先过 50Hz 陷波，再过 40Hz 低通 */
+//        float temp_val;
+//        for (uint32_t i = 0U; i < ads_test_count; i++) {
+//            // 第一步：打掉 50Hz 及其带内干扰
+//            temp_val = Notch50_Process(&notch50_bp, ads_test_data[i]);
+//            // 第二步：切掉 40Hz 以上的所有高频谐波(100Hz/150Hz等)和毛刺
+//            ads_bp_notch[i] = Lpf40_Process(&lpf40_bp, temp_val);
+//        }
 
-        /* 打印前 10 个原始值 */
-        for (int i = 0; i < 10; i++) {
-            printf("RAW[%d]=%ld, HEX=0x%06lX\r\n",
-                   i,
-                   (long)raw_first[i],
-                   (unsigned long)((uint32_t)raw_first[i] & 0xFFFFFFUL));
+        /* ========================================================= */
+        /* 陷波 + 20Hz 低通 */
+        /* ========================================================= */
+
+        float sum = 0.0f;
+        for (uint32_t i = 0U; i < ads_test_count; i++) sum += ads_test_data[i];
+        float mean = sum / (float)ads_test_count;
+
+        /* 1. 50Hz 陷波器 */
+        const float b0 =  0.9902986f;
+        const float b1 = -1.6023368f;
+        const float b2 =  0.9902986f;
+        const float a1 = -1.6023368f;
+        const float a2 =  0.9805972f;
+        float nz1 = 0.0f, nz2 = 0.0f;
+
+        /* 2. 10阶巴特沃斯低通 (截止频率 40Hz) */
+        static const float lp_b[5][3] = {
+            {0.00365247150f, 0.00730494300f, 0.00365247150f},
+            {0.00365247150f, 0.00730494300f, 0.00365247150f},
+            {0.00365247150f, 0.00730494300f, 0.00365247150f},
+            {0.00365247150f, 0.00730494300f, 0.00365247150f},
+            {0.00365247150f, 0.00730494300f, 0.00365247150f}
+        };
+        static const float lp_a1[5] = {-1.76565826028f, -1.78490427193f, -1.82269492520f, -1.87740488209f, -1.94607382805f};
+        static const float lp_a2[5] = { 0.77969166059f,  0.79909063898f,  0.83718165126f,  0.89232644129f,  0.96154116603f};
+        float lz1[5] = {0}, lz2[5] = {0};
+
+        for (uint32_t i = 0U; i < ads_test_count; i++) {
+            float x = ads_test_data[i] - mean; // 去直流
+            
+            /* 第一步：陷波 */
+            float notch_out = b0 * x + nz1;
+            nz1 = b1 * x - a1 * notch_out + nz2;
+            nz2 = b2 * x - a2 * notch_out;
+
+            /* 第二步：10 阶级联巴特沃斯低通 */
+            float lp_out = notch_out;
+            for (int j = 0; j < 5; j++) {
+                float out_stage = lp_b[j][0] * lp_out + lz1[j];
+                lz1[j] = lp_b[j][1] * lp_out - lp_a1[j] * out_stage + lz2[j];
+                lz2[j] = lp_b[j][2] * lp_out - lp_a2[j] * out_stage;
+                lp_out = out_stage;
+            }
+
+            ads_bp_notch[i] = lp_out; 
         }
-
-        /* 打印采样点数 */
-        printf("Capture finished: %lu samples\r\n",
-               (unsigned long)ads_test_count);
-
-        /* 打印全部电压值 */
-        for (uint32_t i = 0; i < TEST_SAMPLES; i++) {
-            printf("%.6f\r\n", ads_test_data[i]);
+				        /* 4. 打印数据（跳过前 250 个点避开初始震荡） */
+        printf("--- Data Start ---\r\n");
+        for (uint32_t i = 250U; i < ads_test_count; ++i) {
+            printf("%.6f\r\n", ads_bp_notch[i]);
         }
-
+        printf("--- Data End ---\r\n");
         /* 停在这里，不再采集 */
         while (1) {
             HAL_Delay(1000);
-        }
+        
 
-    
-	}}
+				}}
+	
+}
   /* USER CODE END 3 */
 }
 
