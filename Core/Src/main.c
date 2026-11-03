@@ -28,7 +28,7 @@
 #include "ADS1292.h"
 #include <stdio.h>
 #include "ADS1292_App.h"
-
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,6 +62,27 @@ extern  float ads_test_data[TEST_SAMPLES];
 uint8_t output_done = 0;
 static float ads_test_filtered[2500];
 static float ads_bp_notch[2500];
+
+
+typedef struct
+{
+    float z1;
+    float z2;
+} BiquadState;
+
+float Biquad_Process(
+    float x,
+    float b0, float b1, float b2,
+    float a1, float a2,
+    BiquadState *s)
+{
+    float y = b0 * x + s->z1;
+
+    s->z1 = b1 * x - a1 * y + s->z2;
+    s->z2 = b2 * x - a2 * y;
+
+    return y;
+}
 
 /* USER CODE END PV */
 
@@ -181,58 +202,71 @@ int main(void)
 //        }
 
         /* ========================================================= */
-        /* 陷波 + 20Hz 低通 */
+ 
         /* ========================================================= */
+        
+BiquadState hp_state = {0};
+BiquadState notch_state = {0};
+BiquadState lp_state = {0};
+BiquadState notch100_state = {0};
+for (uint32_t i = 0; i < ads_test_count; i++)
+{
+    float x = ads_test_data[i];
 
-        float sum = 0.0f;
-        for (uint32_t i = 0U; i < ads_test_count; i++) sum += ads_test_data[i];
-        float mean = sum / (float)ads_test_count;
+// 1. 5Hz 高通
+float hp_out = Biquad_Process(
+    x,
+    0.95654323f,
+   -1.91308645f,
+    0.95654323f,
+    -1.91119707f,
+    0.91497583f,
+    &hp_state
+);
 
-        /* 1. 50Hz 陷波器 */
-        const float b0 =  0.9902986f;
-        const float b1 = -1.6023368f;
-        const float b2 =  0.9902986f;
-        const float a1 = -1.6023368f;
-        const float a2 =  0.9805972f;
-        float nz1 = 0.0f, nz2 = 0.0f;
+// 2. 49.967Hz 陷波，Q=10
+float notch50_out = Biquad_Process(
+    hp_out,
+    0.97146564f,
+   -1.57233788f,
+    0.97146564f,
+   -1.57233788f,
+    0.94293128f,
+    &notch_state
+);
 
-        /* 2. 10阶巴特沃斯低通 (截止频率 40Hz) */
-        static const float lp_b[5][3] = {
-            {0.00365247150f, 0.00730494300f, 0.00365247150f},
-            {0.00365247150f, 0.00730494300f, 0.00365247150f},
-            {0.00365247150f, 0.00730494300f, 0.00365247150f},
-            {0.00365247150f, 0.00730494300f, 0.00365247150f},
-            {0.00365247150f, 0.00730494300f, 0.00365247150f}
-        };
-        static const float lp_a1[5] = {-1.76565826028f, -1.78490427193f, -1.82269492520f, -1.87740488209f, -1.94607382805f};
-        static const float lp_a2[5] = { 0.77969166059f,  0.79909063898f,  0.83718165126f,  0.89232644129f,  0.96154116603f};
-        float lz1[5] = {0}, lz2[5] = {0};
+// 3. 100Hz 陷波
+float notch100_out = Biquad_Process(
+    notch50_out,
+    0.98439639f,
+   -0.60839043f,
+    0.98439639f,
+   -0.60839043f,
+    0.96879278f,
+    &notch100_state
+);
 
-        for (uint32_t i = 0U; i < ads_test_count; i++) {
-            float x = ads_test_data[i] - mean; // 去直流
-            
-            /* 第一步：陷波 */
-            float notch_out = b0 * x + nz1;
-            nz1 = b1 * x - a1 * notch_out + nz2;
-            nz2 = b2 * x - a2 * notch_out;
+// 4. 20Hz 低通
+float lp_out = Biquad_Process(
+    notch100_out,
+    0.01335920f,
+    0.02671840f,
+    0.01335920f,
+   -1.64745998f,
+    0.70089678f,
+    &lp_state
+);
 
-            /* 第二步：10 阶级联巴特沃斯低通 */
-            float lp_out = notch_out;
-            for (int j = 0; j < 5; j++) {
-                float out_stage = lp_b[j][0] * lp_out + lz1[j];
-                lz1[j] = lp_b[j][1] * lp_out - lp_a1[j] * out_stage + lz2[j];
-                lz2[j] = lp_b[j][2] * lp_out - lp_a2[j] * out_stage;
-                lp_out = out_stage;
-            }
-
-            ads_bp_notch[i] = lp_out; 
-        }
+ads_bp_notch[i] = lp_out;
+}
 				        /* 4. 打印数据（跳过前 250 个点避开初始震荡） */
         printf("--- Data Start ---\r\n");
         for (uint32_t i = 250U; i < ads_test_count; ++i) {
-            printf("%.6f\r\n", ads_bp_notch[i]);
+            printf("%.9e\r\n", ads_bp_notch[i]);
+//					printf("%.6f\r\n", ads_test_data[i]);
         }
         printf("--- Data End ---\r\n");
+
         /* 停在这里，不再采集 */
         while (1) {
             HAL_Delay(1000);

@@ -88,11 +88,11 @@ void ads1292_Init(void)
     // 5. 配置所有寄存器（从 0x01 到 0x0B，共 11 个）
 		uint8_t regData[10];
 		regData[0] = 0x02U;   // 0x01 CONFIG1  采样率 500SPS
-		regData[1] = 0x20U;    // 0x02 CONFIG2 方波内部测试信号
+		regData[1] = 0xA0U;    // 0x02 CONFIG2 
 		regData[2] = 0x10U;   // 0x03 LOFF导联脱落检测控制寄存器（默认）
 		regData[3] = 0x81U;     // 0x04 CH1SET
 		regData[4] = 0x00U;   // 0x05 CH2SET
-		regData[5] = 0x00;   // 0x06 RLD_SENS
+		regData[5] = 0x23U;   // 0x06 RLD_SENS
 		regData[6] = 0x00;   // 0x07 LOFF_SENS
 		regData[7] = 0x40U;   // 0x08 LOFF_STAT（配置 CLK_DIV=1，晶振是 2.048M）
 		regData[8] = 0x02;   // 0x09 RESP1
@@ -120,7 +120,6 @@ void ads1292_Init(void)
     
     printf("RDATAC sent\r\n");
 }
-
 
 void ads1292_RDATA(uint8_t *Data,uint8_t len)
 {
